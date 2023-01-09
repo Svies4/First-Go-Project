@@ -54,10 +54,16 @@ func sseHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	router := http.NewServeMux()
 
-	router.HandleFunc("/event", sseHandler)
-	router.HandleFunc("/time", getTime)
+	fileServer := http.FileServer(http.Dir("./static"))
+	http.Handle("/", fileServer)
+	http.HandleFunc("/event", sseHandler)
+	http.HandleFunc("/time", getTime)
 
-	log.Fatal(http.ListenAndServe(":3500", router))
+	fmt.Printf("Starting server at port 8080\n")
+	if err := http.ListenAndServe(":8080", nil); err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Printf("asasasasas")
 }
