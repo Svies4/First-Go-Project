@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+
+<body>
+
+<h1>Getting server updates</h1>
+<div id="result"></div>
+
+<script>
+    /*if(typeof(EventSource) !== "undefined") {
+var source = new EventSource("http://localhost:8080/infocenter/test");
+source.onmessage = function(event) {
+  document.getElementById("result").innerHTML += event.data + "<br>";
+};
+} else {
+document.getElementById("result").innerHTML = "Sorry, your browser does not support server-sent events...";
+}*/
+
+</script>
+<h5>Start Ad-Placer!</h5>
+<select id="topics">
+    <option value="general" selected>General Questions</option>
+    <option value="deposits">Deposits</option>
+    <option value="withdrawals">Withdrawals</option>
+    <option value="sportspook">Sportsbook</option>
+    <option value="account">Account Questions</option>
+</select>
+
+<input type="submit" value="Start" onclick="submit()">
+<input type="text" placeholder="Write your message" id="message">
+<input type="submit" value="Start" onclick="submitPost()">
+
+<script type="text/javascript">
+    function submit() {
+
+        var selectBox = document.getElementById("topics");
+        var topic = selectBox.options[selectBox.selectedIndex].value;
+
+        if (typeof(EventSource) !== "undefined") {
+            var source = new EventSource("http://localhost:8080/infocenter/" + topic);
+            source.onmessage = function(event) {
+                document.getElementById("result").innerHTML += event.data + "<br>";
+            };
+        } else {
+            document.getElementById("result").innerHTML = "Sorry, your browser does not support server-sent events...";
+        }
+
+
+        /*var selectBox = document.getElementById("topics");
+        var topic = selectBox.options[selectBox.selectedIndex].value;
+
+        var xhr = new XMLHttpRequest();
+        xhr.open('get', 'http://localhost:8080/infocenter/' + topic, true);
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
+        xhr.send();*/
+    }
+    function submitPost() {
+        var message = document.getElementById('message').value;
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', 'http://localhost:8080/infocenter/general', true);
+        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
+        xhr.send();
+    }
+
+</script>
+</body>
+
+</html>
