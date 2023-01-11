@@ -3,18 +3,28 @@ package main
 import (
 	"fmt"
 	"github.com/gorilla/mux"
+	"io/ioutil"
+	"math/rand"
 	"net/http"
+	"strings"
 	"sync"
 	_ "sync"
 	"time"
 )
 
 // var msgChan chan string
-var msgChanMap = make(map[string]chan string)
+var msgChanMap = make(map[string]chan Message)
+var IDs = make(map[int]bool)
 var mut = &sync.Mutex{}
 
 func addMsg() {
 
+}
+
+func delete(topic string) {
+	close(msgChanMap[topic])
+	msgChanMap[topic] = nil
+	fmt.Println("Client closed connection")
 }
 
 func sseHandler(w http.ResponseWriter, r *http.Request) {
@@ -37,11 +47,11 @@ func sseHandler(w http.ResponseWriter, r *http.Request) {
 	//msgChanMap[topic] = make(chan string, 2)
 	//msgChanMap[topic] <- topic
 
-	defer func() {
+	/*defer func() {
 		close(msgChanMap[topic])
 		msgChanMap[topic] = nil
 		fmt.Println("Client closed connection")
-	}()
+	}()*/
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -53,7 +63,9 @@ func sseHandler(w http.ResponseWriter, r *http.Request) {
 		case message := <-msgChanMap[topic]:
 			fmt.Println("case message... sending message")
 			fmt.Println(message)
-			fmt.Fprintf(w, "data: %s\n\n", message)
+			fmt.Fprintf(w, "id: %d\n\n", message.Id)
+			fmt.Fprintf(w, "data: %s\n\n", message.Contents)
+			fmt.Fprintf(w, "time: %d\n\n", message.Date)
 			flusher.Flush()
 		case <-r.Context().Done():
 			fmt.Println("Client closed connection")
@@ -77,7 +89,7 @@ type Message struct {
 }
 
 func main() {
-	msgChanMap["general"] = make(chan string, 5)
+	//msgChanMap["general"] = make(chan Message, 5)
 	r := mux.NewRouter()
 	r.Handle("/", http.Handler(http.FileServer(http.Dir("./"))))
 	//r.HandleFunc("/infocenter/sa", sseHandler)
@@ -108,6 +120,8 @@ func main() {
 	select {}
 }
 
+var results []string
+
 func Provisions(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	topic, ok := vars["topic"]
@@ -121,18 +135,38 @@ func Provisions(w http.ResponseWriter, r *http.Request) {
 		msg := "topic"
 		msgChanMap["topic"] <- msg
 	}*/
+
+	_, exists := msgChanMap[topic]
+	if !exists {
+		msgChanMap[topic] = make(chan Message)
+	}
+
 	switch r.Method {
 	case "GET":
-
 		sseHandler(w, r)
 	case "POST":
-		fmt.Println("aaaaaaaaaaaaaaaaaaaaaaaa")
+		fmt.Println("POST request received")
 		mut.Lock()
 		//time.Sleep(1000 * time.Millisecond)
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, "Error reading request body",
+				http.StatusInternalServerError)
+		}
+		var results = append(results, string(body))
 
-		msgChanMap["general"] <- "Gdassadasdasdssage"
+		fmt.Fprintf(w, "Post from website! r.PostFrom = %v\n", r.PostForm)
+		message := r.FormValue("message")
+
+		var msg Message
+		msg.Contents = strings.Join(results, "")
+		msg.Id = GenerateId()
+		msg.Date = time.Now()
+
+		msgChanMap[topic] <- msg
 		mut.Unlock()
-		fmt.Println("id is missing in parameters")
+		fmt.Println(message)
+		fmt.Println("POST done")
 
 	default:
 		fmt.Fprintf(w, "Sorry, only GET and POST methods are supported.")
@@ -140,4 +174,15 @@ func Provisions(w http.ResponseWriter, r *http.Request) {
 
 	//call http://localhost:8080/provisions/someId in your browser
 	//Output : id := someId
+}
+
+func GenerateId() int {
+	for {
+		var ran = rand.Intn(99999999-9999999) + 9999999
+		if IDs[ran] == false {
+			IDs[ran] = true
+			fmt.Println(ran)
+			return ran
+		}
+	}
 }
