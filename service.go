@@ -1,179 +1,138 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/gorilla/mux"
-	"io/ioutil"
+	"log"
 	"math/rand"
 	"net/http"
-	"strings"
-	"sync"
-	_ "sync"
-	"time"
 )
 
-// var msgChan chan string
-var msgChanMap = make(map[string]chan Message)
 var IDs = make(map[int]bool)
-var mut = &sync.Mutex{}
 
-func addMsg() {
-
+type Broker struct {
+	Topic          string
+	Notifier       chan []byte
+	newClients     chan chan []byte
+	closingClients chan chan []byte
+	clients        map[chan []byte]bool
 }
 
-func delete(topic string) {
-	close(msgChanMap[topic])
-	msgChanMap[topic] = nil
-	fmt.Println("Client closed connection")
-}
-
-func sseHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	topic, okk := vars["topic"]
-	fmt.Println(`topic := `, topic)
-
-	if !okk {
-		fmt.Println("id is missing in parameters")
-	}
-	fmt.Println("Client connected")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-
-	//msgChan = make(chan string)
-	//msgChanMap := make(map[string]chan string)
-
-	//msgChanMap[topic] = make(chan string, 2)
-	//msgChanMap[topic] <- topic
-
-	/*defer func() {
-		close(msgChanMap[topic])
-		msgChanMap[topic] = nil
-		fmt.Println("Client closed connection")
-	}()*/
-
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		fmt.Println("Could not init http.Flusher")
-	}
-
-	for {
-		select {
-		case message := <-msgChanMap[topic]:
-			fmt.Println("case message... sending message")
-			fmt.Println(message)
-			fmt.Fprintf(w, "id: %d\n\n", message.Id)
-			fmt.Fprintf(w, "data: %s\n\n", message.Contents)
-			fmt.Fprintf(w, "time: %d\n\n", message.Date)
-			flusher.Flush()
-		case <-r.Context().Done():
-			fmt.Println("Client closed connection")
-			return
-		}
-		//time.Sleep(300 * time.Millisecond)
-		//fmt.Println("WAITING")
-		//msgChanMap[topic] <- topic
-	}
-
-}
-
-type Topic struct {
-	Name     string
-	Messages []Message
-}
-type Message struct {
+/*type Messagee struct {
 	Id       int
 	Contents string
 	Date     time.Time
+}*/
+
+func NewServer(Topic string) (broker *Broker) {
+	// Instantiate a broker
+	broker = &Broker{
+		Notifier:       make(chan []byte, 1),
+		newClients:     make(chan chan []byte),
+		closingClients: make(chan chan []byte),
+		clients:        make(map[chan []byte]bool),
+		Topic:          Topic,
+	}
+
+	// Set it running - listening and broadcasting events
+	go broker.listen()
+
+	return
 }
 
-func main() {
-	//msgChanMap["general"] = make(chan Message, 5)
-	r := mux.NewRouter()
-	r.Handle("/", http.Handler(http.FileServer(http.Dir("./"))))
-	//r.HandleFunc("/infocenter/sa", sseHandler)
-	r.HandleFunc("/infocenter/{topic}", Provisions)
-
-	go func() {
-		fmt.Println("serving on 8080")
-		err := http.ListenAndServe(":8080", r)
-		if err != nil {
-			panic("ListenAndServe: " + err.Error())
-		}
-	}()
-
-	/*go func() {
-		for {
-			//time.Sleep(300 * time.Millisecond)
-			//msgChanMap := make(map[string]chan string)
-			msgChanMap["general"] = make(chan string, 2)
-			//mut.Lock()
-			msgChanMap["general"] <- "GENERALmessage"
-			//mut.Unlock()
-			fmt.Println("id is missing in parameters")
-		}
-	}()*/
-	go func() {
-		fmt.Println("a")
-	}()
-	select {}
+type Message struct {
+	Message string `json:"msg"`
+	ID      int    `json:"id"`
 }
 
-var results []string
+func (broker *Broker) Stream(w http.ResponseWriter, r *http.Request) {
+	flusher, ok := w.(http.Flusher)
 
-func Provisions(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	topic, ok := vars["topic"]
 	if !ok {
-		fmt.Println("id is missing in parameters")
-	}
-	fmt.Println(`topic := `, topic)
-
-	/*fmt.Println(`topic cvfvsv:= `, msgChanMap["topic"])
-	if msgChanMap["topic"] != nil {
-		msg := "topic"
-		msgChanMap["topic"] <- msg
-	}*/
-
-	_, exists := msgChanMap[topic]
-	if !exists {
-		msgChanMap[topic] = make(chan Message)
+		http.Error(w, "Streaming unsupported!", http.StatusInternalServerError)
+		return
 	}
 
-	switch r.Method {
-	case "GET":
-		sseHandler(w, r)
-	case "POST":
-		fmt.Println("POST request received")
-		mut.Lock()
-		//time.Sleep(1000 * time.Millisecond)
-		body, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			http.Error(w, "Error reading request body",
-				http.StatusInternalServerError)
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	// Each connection registers its own message channel with the Broker's connections registry
+	messageChan := make(chan []byte)
+
+	// Signal the broker that we have a new connection
+	broker.newClients <- messageChan
+
+	// Remove this client from the map of connected clients
+	// when this handler exits.
+	defer func() {
+		broker.closingClients <- messageChan
+	}()
+
+	// Listen to connection close and un-register messageChan
+	notify := w.(http.CloseNotifier).CloseNotify()
+
+	go func() {
+		<-notify
+		broker.closingClients <- messageChan
+	}()
+
+	for {
+
+		// Write to the ResponseWriter
+		// Server Sent Events compatible
+		fmt.Fprintf(w, "data: %s\n\n", <-messageChan)
+
+		// Flush the data immediatly instead of buffering it for later.
+		flusher.Flush()
+	}
+
+}
+
+func (broker *Broker) listen() {
+	for {
+		select {
+		case s := <-broker.newClients:
+
+			// A new client has connected.
+			// Register their message channel
+			broker.clients[s] = true
+			log.Printf("Client added. %d registered clients", len(broker.clients))
+		case s := <-broker.closingClients:
+
+			// A client has dettached and we want to
+			// stop sending them messages.
+			delete(broker.clients, s)
+			log.Printf("Removed client. %d registered clients", len(broker.clients))
+		case event := <-broker.Notifier:
+
+			// We got a new event from the outside!
+			// Send event to all connected clients
+			for clientMessageChan, _ := range broker.clients {
+				clientMessageChan <- event
+			}
 		}
-		var results = append(results, string(body))
-
-		fmt.Fprintf(w, "Post from website! r.PostFrom = %v\n", r.PostForm)
-		message := r.FormValue("message")
-
-		var msg Message
-		msg.Contents = strings.Join(results, "")
-		msg.Id = GenerateId()
-		msg.Date = time.Now()
-
-		msgChanMap[topic] <- msg
-		mut.Unlock()
-		fmt.Println(message)
-		fmt.Println("POST done")
-
-	default:
-		fmt.Fprintf(w, "Sorry, only GET and POST methods are supported.")
 	}
 
-	//call http://localhost:8080/provisions/someId in your browser
-	//Output : id := someId
+}
+
+func (broker *Broker) BroadcastMessage(w http.ResponseWriter, r *http.Request) {
+	// params := mux.Vars(r)
+
+	var msg Message
+	fmt.Println(json.NewDecoder(r.Body).Decode(&msg))
+	msg.ID = GenerateId()
+	_ = json.NewDecoder(r.Body).Decode(&msg)
+
+	//broker.Notifier <- []byte(fmt.Sprintf("the time is %v", msg))
+	j, _ := json.Marshal(msg)
+	//fmt.Println(r)
+	broker.Notifier <- []byte(j)
+	json.NewEncoder(w).Encode(msg)
+	//broker.Notifier <- []byte("aaaa")
+
 }
 
 func GenerateId() int {
@@ -184,5 +143,58 @@ func GenerateId() int {
 			fmt.Println(ran)
 			return ran
 		}
+	}
+}
+func main() {
+	//broker := NewServer()
+	router := mux.NewRouter()
+
+	router.Handle("/", http.Handler(http.FileServer(http.Dir("./"))))
+
+	//router.HandleFunc("/messages", broker.BroadcastMessage).Methods("POST")
+
+	router.HandleFunc("/infocenter/{topic}", Provisions)
+
+	log.Fatal(http.ListenAndServe(":8080", router))
+
+}
+
+var Topics = make(map[string]bool)
+var Brokers = make(map[string]*Broker)
+
+//var Servers = make(map[Broker]New)
+
+func Provisions(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	topic, ok := vars["topic"]
+	if !ok {
+		fmt.Println("id is missing in parameters")
+	}
+	fmt.Println(`topic := `, topic)
+
+	switch r.Method {
+	case "GET":
+		if Topics[topic] == false {
+			fmt.Println("Created new server")
+			Topics[topic] = true
+			broker := NewServer(topic)
+			Brokers[topic] = broker
+			broker.Stream(w, r)
+		} else {
+			Brokers[topic].Stream(w, r)
+		}
+
+	case "POST":
+		if Topics[topic] == false {
+			fmt.Println("Created new server")
+			Topics[topic] = true
+			broker := NewServer(topic)
+			Brokers[topic] = broker
+			Brokers[topic].BroadcastMessage(w, r)
+		} else {
+			Brokers[topic].BroadcastMessage(w, r)
+		}
+	default:
+		fmt.Fprintf(w, "Sorry, only GET and POST methods are supported.")
 	}
 }

@@ -1,80 +1,161 @@
 <!DOCTYPE html>
 <html>
+    <head>
+        <title>Subscribe to Topics</title>
+		<style>
+			@import url('https://rsms.me/inter/inter-ui.css');
+			body {
+				align-items: center;
+				background: linear-gradient(-45deg, #210242, #9198e5);
+				display: flex;
+				font-family: 'Inter UI', sans-serif;
+				height: 100vh;
+				justify-content: center;
+				margin: 0;
+				width: 100vw;
+			}
+			.card {
+				background: white;
+				border-radius: 12px;
+				box-shadow: 0 14px 28px rgba(0,0,0,0.25), 0 10px 10px rgba(0,0,0,0.22);
+				overflow: hidden;
+				padding: 20px;
+				position: relative;
+				width: 300px;
+			}
+			.title {
+				font-size: 1.5em;
+				height: 29px;
+				margin-bottom: 0;
+			}
+			.text {
+				color: #667;
+				font-size: 1em;
+				height: 38px;
+				margin: 5px 0 0;
+			}
+			.form {
+				transform-origin: 0 50%;
+				transition: transform 500ms, opacity 500ms;
+			}
+			.card.saving .form {
+				transform: translateY(-16px) scale(.8);
+			}
+			.card.done .form {
+				transform: translateY(-16px) scale(.8);
+				opacity: 0;
+			}
+			.input {
+				background: transparent;
+				border: 0;
+				box-sizing: border-box;
+				font-size: 20px;
+				height: 40px;
+				margin-top: 20px;
+				outline: none !important;
+				position: relative;
+				width: 100%;
+				border-bottom: 2px solid black;
+			}
+			@keyframes Rotate {
+				0% { transform: rotate(0); opacity: 1; }
+				25% { transform: rotate(360deg); opacity: 1; }
+				50% { transform: rotate(720deg); opacity: 1; }
+				75% { transform: rotate(1080deg); opacity: 1; stroke-dasharray: 6 48; stroke-dashoffset: -42;}
+				100% { transform: rotate(1080deg); opacity: 1; stroke-dashoffset: 0; stroke-dasharray: 36 48;}
+			}
+			@keyframes ScaleDown {
+				0% { transform: scale(1); }
+				100% { transform: scale(0);}
+			}
 
-<body>
+			.subscribed-topic-name {
+				font-weight: bold;
+			}
 
-<h1>Getting server updates</h1>
-<div id="result"></div>
+			.topic-messages h5 {
+				margin-bottom: 15px;
+			}
 
-<script>
-    /*if(typeof(EventSource) !== "undefined") {
-var source = new EventSource("http://localhost:8080/infocenter/test");
-source.onmessage = function(event) {
-  document.getElementById("result").innerHTML += event.data + "<br>";
-};
-} else {
-document.getElementById("result").innerHTML = "Sorry, your browser does not support server-sent events...";
-}*/
+			.topic-messages .message {
+				font-weight: bold;
+				margin-bottom: 0;
+			}
 
-</script>
-<h5>Start Ad-Placer!</h5>
-<select id="topics">
-    <option value="general" selected>General Questions</option>
-    <option value="deposits">Deposits</option>
-    <option value="withdrawals">Withdrawals</option>
-    <option value="sportspook">Sportsbook</option>
-    <option value="account">Account Questions</option>
-</select>
+			.topic-messages .message .message-id {
+				font-weight: normal;
+				color: #939393;
+			}
+		</style>
+    </head>
+    <body>
 
-<input type="submit" value="Start" onclick="submit()">
-<input type="text" placeholder="Write your message" id="message">
-<input type="submit" value="Start" onclick="submitPost()">
+        <div class="card">
+		    <h2 class="title">SUBSCRIBE</h2>
+		    <p class="text">Subscribe to a topic that interests you the most</p>
 
-<script type="text/javascript">
-    function submit() {
+		    <form class="form topics-form" action="">
+		        <input id="topic" class="input" type="text" placeholder="Your Topic">
+		    </form>
 
-        var selectBox = document.getElementById("topics");
-        var topic = selectBox.options[selectBox.selectedIndex].value;
+		    <div class="topic-messages" style="display: none;">
+			    <h5>Subscribed to <span class="subscribed-topic-name"></span></h5>
+			    <div class="messages">
+			    </div>
 
-        if (typeof(EventSource) !== "undefined") {
-            var source = new EventSource("http://localhost:8080/infocenter/" + topic);
-            source.onmessage = function(event) {
-                document.getElementById("result").innerHTML += event.data + "<br>";
-            };
-        } else {
-            document.getElementById("result").innerHTML = "Sorry, your browser does not support server-sent events...";
-        }
+			    <form class="form messages-form" action="">
+			        <input id="message" class="input" type="text" placeholder="Your Message">
+			    </form>
+		    </div>
 
+		</div>
+    	<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+    	<script>
+			$(document).ready(function() {
 
-        /*var selectBox = document.getElementById("topics");
-        var topic = selectBox.options[selectBox.selectedIndex].value;
+				$('.topics-form').submit(function(event) {
+					event.preventDefault();
 
-        var xhr = new XMLHttpRequest();
-        xhr.open('get', 'http://localhost:8080/infocenter/' + topic, true);
-        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
-        xhr.send();*/
-    }
-    function submitPost() {
-        var message = document.getElementById('message').value;
-        var xhr = new XMLHttpRequest();
-        xhr.open('POST', 'http://localhost:8080/infocenter/general', true);
-        xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
-        //xhr.send(JSON.stringify({value: message}));
+					var topicName = $('#topic').val();
+					var card = $('.card');
+					var input = $('.input');
 
-        let data = `{"Id": 78912,"Customer": "Jason Sweet","Quantity": 1,"Price": 18.00}`;
+					input.blur();
+					card.addClass('saving');
 
-        xhr.send(data);
+					$('.subscribed-topic-name').text(topicName);
+					$('.topic-messages').fadeIn('slow');
 
-        /*fetch("http://localhost:8080/infocenter/general", {
-            method: "POST",
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify(message)
-        }).then(res => {
-            console.log("Request complete! response:", res);
-        });*/
-    }
+					if (typeof(EventSource) !== "undefined") {
+						var source = new EventSource("http://localhost:8080/infocenter/" + topicName);
 
-</script>
-</body>
+						source.onmessage = function(event) {
+							var data = JSON.parse(event.data);
 
+							$('.messages').append('<p class="message"><span class="message-id">' + data.id + ':</span> ' + data.msg + '</p>')
+						};
+					} else {
+						$('.messages').html("Sorry, your browser does not support server-sent events...");
+					}
+				});
+
+				$('.messages-form').submit(function(event) {
+					event.preventDefault();
+
+					var message = $('#message').val();
+					var topicName = $('#topic').val();
+
+					$('#message').val('');
+
+					var xhr = new XMLHttpRequest();
+					xhr.open('POST', 'http://localhost:8080/infocenter/'+topicName, true);
+					xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded; charset=UTF-8');
+
+					var data = {"msg": message};
+
+					xhr.send(JSON.stringify(data));
+				});
+			});
+		</script>
+    </body>
 </html>
