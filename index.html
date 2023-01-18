@@ -86,6 +86,11 @@
 				font-weight: normal;
 				color: #939393;
 			}
+
+			.messages {
+				max-height: 300px;
+				overflow-y: auto;
+			}
 		</style>
     </head>
     <body>
@@ -104,7 +109,7 @@
 			    </div>
 
 			    <form class="form messages-form" action="">
-			        <input id="message" class="input" type="text" placeholder="Your Message">
+			        <input id="message" required class="input" type="text" placeholder="Your Message">
 			    </form>
 		    </div>
 
@@ -129,10 +134,18 @@
 					if (typeof(EventSource) !== "undefined") {
 						var source = new EventSource("http://localhost:8080/infocenter/" + topicName);
 
+						source.addEventListener("timeout", (event) => {
+							console.log("timeout event received")
+							window.alert("TIMEOUT. You were consuming the stream for: "+ event.data);
+						});
+
 						source.onmessage = function(event) {
 							var data = JSON.parse(event.data);
-
+							console.log(event)
 							$('.messages').append('<p class="message"><span class="message-id">' + data.id + ':</span> ' + data.msg + '</p>')
+							$('.messages').scrollTop($('.messages')[0].scrollHeight);
+
+
 						};
 					} else {
 						$('.messages').html("Sorry, your browser does not support server-sent events...");
