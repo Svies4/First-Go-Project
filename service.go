@@ -80,7 +80,11 @@ func (broker *Broker) Stream(w http.ResponseWriter, r *http.Request) {
 	}()
 
 	for {
-		fmt.Fprintf(w, "data: %s\n\n", <-messageChan)
+		_, err := fmt.Fprintf(w, "data: %s\n\n", <-messageChan)
+		if err != nil {
+			// Handle error
+			return
+		}
 		flusher.Flush()
 	}
 
@@ -141,14 +145,18 @@ func RequestHandler(w http.ResponseWriter, r *http.Request) {
 
 	switch r.Method {
 	case "GET":
-		if Topics[topic] == false {
-			fmt.Println("Created new server")
-			Topics[topic] = true
-			broker := NewServer(topic)
-			Brokers[topic] = broker
-			broker.Stream(w, r)
+		if r.Header.Get("Accept") == "text/event-stream" { //Checks if get request is event-stream type
+			if Topics[topic] == false {
+				fmt.Println("Created new server")
+				Topics[topic] = true
+				broker := NewServer(topic)
+				Brokers[topic] = broker
+				broker.Stream(w, r)
+			} else {
+				Brokers[topic].Stream(w, r)
+			}
 		} else {
-			Brokers[topic].Stream(w, r)
+			w.WriteHeader(400)
 		}
 
 	case "POST":
