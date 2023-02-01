@@ -119,15 +119,19 @@ func (broker *Broker) listen() {
 }
 
 func (broker *Broker) BroadcastMessage(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
 	var msg Message
-
 	msg.ID = GenerateId()
-	_ = json.NewDecoder(r.Body).Decode(&msg)
+
+	body := json.NewDecoder(r.Body)
+
+	if err := body.Decode(&msg); err != nil {
+		http.Error(w, "Bad Request: Invalid JSON format", http.StatusBadRequest)
+		return
+	}
+
 	j, _ := json.Marshal(msg)
-
 	broker.Notifier <- []byte(j)
-	//json.NewEncoder(w).Encode(msg)
-
 }
 
 func GenerateId() int {
