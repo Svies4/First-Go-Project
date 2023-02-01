@@ -5,14 +5,17 @@ import (
 	"fmt"
 	"github.com/gorilla/mux"
 	"log"
-	"math/rand"
 	"net/http"
+	"sync"
 	"time"
 )
 
 var IDs = make(map[int]bool)
 var Topics = make(map[string]bool)
 var Brokers = make(map[string]*Broker)
+
+var idCounter uint64
+var id sync.Mutex
 
 type Broker struct {
 	Topic          string
@@ -128,14 +131,12 @@ func (broker *Broker) BroadcastMessage(w http.ResponseWriter, r *http.Request) {
 }
 
 func GenerateId() int {
-	for {
-		var ran = rand.Intn(99999-9999) + 9999
-		if IDs[ran] == false {
-			IDs[ran] = true
-			return ran
-		}
-	}
+	id.Lock()
+	defer id.Unlock()
+	idCounter++
+	return int(idCounter)
 }
+
 func RequestHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	topic, ok := vars["topic"]
