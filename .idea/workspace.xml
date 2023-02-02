@@ -8,10 +8,8 @@
     <option name="autoReloadType" value="ALL" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="5d3897f0-cea7-4bdd-8d66-b9bee655c0e9" name="Changes" comment="ID generating principle changed from random to auto-increment">
+    <list default="true" id="5d3897f0-cea7-4bdd-8d66-b9bee655c0e9" name="Changes" comment="Added JSON validation">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/go.mod" beforeDir="false" afterPath="$PROJECT_DIR$/go.mod" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/go.sum" beforeDir="false" afterPath="$PROJECT_DIR$/go.sum" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/service.go" beforeDir="false" afterPath="$PROJECT_DIR$/service.go" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -112,7 +110,8 @@
     <MESSAGE value="Fixed incorrect handling of GET (event-stream) request.&#10;Fixed possible errors handling." />
     <MESSAGE value="Merge remote-tracking branch 'origin/main'" />
     <MESSAGE value="ID generating principle changed from random to auto-increment" />
-    <option name="LAST_COMMIT_MESSAGE" value="ID generating principle changed from random to auto-increment" />
+    <MESSAGE value="Added JSON validation" />
+    <option name="LAST_COMMIT_MESSAGE" value="Added JSON validation" />
   </component>
   <component name="VgoProject">
     <settings-migrated>true</settings-migrated>

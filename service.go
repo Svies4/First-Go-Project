@@ -11,11 +11,20 @@ import (
 )
 
 var IDs = make(map[int]bool)
-var Topics = make(map[string]bool)
+
+// var Topics = make(map[string]bool)
 var Brokers = make(map[string]*Broker)
 
 var idCounter uint64
 var id sync.Mutex
+var ChanLock sync.Mutex
+
+type TopicsList struct {
+	topics     map[string]bool
+	topicsLock sync.Mutex
+}
+
+var Topics = TopicsList{topics: map[string]bool{}}
 
 type Broker struct {
 	Topic          string
@@ -66,6 +75,7 @@ func (broker *Broker) Stream(w http.ResponseWriter, r *http.Request) {
 
 	defer func() {
 		broker.closingClients <- messageChan
+
 	}()
 
 	go func() {
@@ -105,7 +115,7 @@ func (broker *Broker) listen() {
 			delete(broker.clients, s)
 			log.Printf("Removed client. %d registered clients", len(broker.clients))
 			if len(broker.clients) == 0 {
-				delete(Topics, broker.Topic)
+				delete(Topics.topics, broker.Topic)
 				return
 			}
 		case event := <-broker.Notifier:
@@ -121,6 +131,8 @@ func (broker *Broker) listen() {
 func (broker *Broker) BroadcastMessage(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	var msg Message
+	ChanLock.Lock()
+	defer ChanLock.Unlock()
 	msg.ID = GenerateId()
 
 	body := json.NewDecoder(r.Body)
@@ -151,9 +163,9 @@ func RequestHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case "GET":
 		if r.Header.Get("Accept") == "text/event-stream" { //Checks if get request is event-stream type
-			if Topics[topic] == false {
+			if Topics.topics[topic] == false {
 				fmt.Println("Created new server")
-				Topics[topic] = true
+				Topics.topics[topic] = true
 				broker := NewServer(topic)
 				Brokers[topic] = broker
 				broker.Stream(w, r)
@@ -165,14 +177,15 @@ func RequestHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 	case "POST":
-		if Topics[topic] == false {
+		if Topics.topics[topic] == false {
 			fmt.Println("Created new server")
-			Topics[topic] = true
+			Topics.topics[topic] = true
 			broker := NewServer(topic)
 			Brokers[topic] = broker
 			Brokers[topic].BroadcastMessage(w, r)
 		} else {
 			Brokers[topic].BroadcastMessage(w, r)
+
 		}
 	default:
 		fmt.Fprintf(w, "Sorry, only GET and POST methods are supported.")
@@ -180,6 +193,7 @@ func RequestHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
+
 	router := mux.NewRouter()
 
 	router.Handle("/", http.Handler(http.FileServer(http.Dir("./"))))
