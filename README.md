@@ -1,4 +1,6 @@
 # First-Go-Project
+*Chat service*
+
 
 github.com/gorilla/mux library is needed for this script to work
 
